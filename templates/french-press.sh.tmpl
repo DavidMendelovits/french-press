@@ -14,19 +14,29 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 export NVM_DIR="$HOME/.nvm"
 [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
 
-REPO=$(basename "$PWD")
-LOCK_DIR="/tmp/french-press-${REPO}.lock"
-
-# Prevent concurrent cron runs (and --phase races). mkdir is atomic on POSIX.
-mkdir "$LOCK_DIR" 2>/dev/null || exit 0
-trap 'rmdir "$LOCK_DIR"' EXIT
-
 load_env() {
 {{ENV_LOADER}}
 }
 load_env "$@"
 
+REPO=$(basename "$PWD")
+LOCK_DIR="/tmp/french-press-${REPO}.lock"
+
+# Prevent concurrent cron runs (and --phase races). mkdir is atomic on POSIX.
+# Must come after load_env: exec does not fire EXIT traps, so the lock dir
+# would survive the doppler re-exec and block the second invocation.
+# Remove stale plain-file lock leftover from old flock-based approach.
+[ -f "$LOCK_DIR" ] && rm -f "$LOCK_DIR"
+mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+trap 'rmdir "$LOCK_DIR"' EXIT
+
 # GH_TOKEN for cron (keychain not available to cron).
 {{GH_TOKEN_SOURCE}}
 
-node "$(dirname "$0")/../src/french-press/dist/index.js" "$@"
+FP_DIR="$(dirname "$0")/../src/french-press"
+if [ ! -f "$FP_DIR/dist/index.js" ]; then
+  echo "Building french-press..."
+  (cd "$FP_DIR" && npm ci --ignore-scripts && npm run build)
+fi
+
+node "$FP_DIR/dist/index.js" "$@"

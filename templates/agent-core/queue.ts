@@ -32,14 +32,23 @@ interface GHIssue {
 }
 
 function fetchIssues(config: FrenchPressConfig): GHIssue[] {
-  const labelFlag = config.issueLabels.map(l => `--label "${l}"`).join(' ');
-  const raw = execSync(`gh issue list ${labelFlag} --json number,title --limit 20`, { encoding: 'utf-8' });
-  return JSON.parse(raw) as GHIssue[];
+  const seen = new Set<number>();
+  const issues: GHIssue[] = [];
+  for (const label of config.issueLabels) {
+    const raw = execSync(`gh issue list --label "${label}" --json number,title --limit 20`, { encoding: 'utf-8' });
+    for (const issue of JSON.parse(raw) as GHIssue[]) {
+      if (!seen.has(issue.number)) {
+        seen.add(issue.number);
+        issues.push(issue);
+      }
+    }
+  }
+  return issues;
 }
 
 function scanTodos(): WorkItem[] {
   try {
-    const raw = execSync('grep -rn "TODO(french-press)" --include="*.ts" --include="*.tsx" --include="*.js" .', { encoding: 'utf-8' });
+    const raw = execSync('grep -rn "TODO(french-press)" --include="*.ts" --include="*.tsx" --include="*.js" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=french-press .', { encoding: 'utf-8' });
     const items: WorkItem[] = [];
     for (const line of raw.trim().split('\n').filter(Boolean)) {
       const m = line.match(/^(.+):(\d+):.+TODO\(french-press\)\s*(.+)/);

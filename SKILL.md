@@ -69,6 +69,16 @@ Ask:
 > B) dotenv (.env.local)
 > C) none (already in env)
 
+If Q5=A (doppler), run `doppler projects` to list available projects, then ask two follow-ups:
+
+**Q5a — Doppler project:**
+> Which Doppler project should this agent use?
+> (run `doppler projects` to see available projects)
+
+**Q5b — Doppler config:**
+> Which Doppler config (environment)? Default: `dev`
+> (run `doppler configs --project <project>` to see available configs)
+
 ### Q6 — GH_TOKEN source (for cron)
 Cron can't read the macOS keychain. The agent needs a GitHub token at runtime.
 Ask:
@@ -80,7 +90,7 @@ Ask:
 
 ## Step 3 — Write `french-press-config.json`
 
-Based on the 6 answers, write `french-press-config.json` to the repo root:
+Based on the answers, write `french-press-config.json` to the repo root:
 
 ```json
 {
@@ -91,9 +101,13 @@ Based on the 6 answers, write `french-press-config.json` to the repo root:
   "surpriseEnabled": false,
   "retryAfterHours": 24,
   "ciTimeoutSeconds": 600,
-  "envLoader": "<doppler|dotenv|none from Q5>"
+  "envLoader": "<doppler|dotenv|none from Q5>",
+  "dopplerProject": "<Q5a — only if envLoader=doppler>",
+  "dopplerConfig": "<Q5b — only if envLoader=doppler, default: dev>"
 }
 ```
+
+Omit `dopplerProject` and `dopplerConfig` if `envLoader` is not `doppler`.
 
 Add `french-press-config.json` to `.gitignore` if it's not already there (it may contain deployment details).
 
@@ -130,15 +144,15 @@ cd src/french-press && npm install
 ## Step 7 — Generate scripts/french-press.sh from template
 
 Read `$FP_TEMPLATES/french-press.sh.tmpl`.
-Replace the 4 template variables:
+Replace the template variables:
 
 - `{{REPO_NAME}}` → basename of repo (from Step 1)
 - `{{REPO_DIR}}` → absolute path to repo root (`git rev-parse --show-toplevel`)
 - `{{ENV_LOADER}}` → value from Q5, one of:
-  - doppler:
+  - doppler (substitute the actual project/config from Q5a/Q5b):
     ```
       [ -n "${DOPPLER_CONFIG:-}" ] && return 0
-      exec doppler run -- "$0" "$@"
+      exec doppler run --project <Q5a> --config <Q5b> -- "$0" "$@"
     ```
   - dotenv: `[ -f .env.local ] && export $(grep -v '^#' .env.local | xargs)`
   - none: `# no env loader configured`

@@ -204,20 +204,22 @@ async function main(): Promise<void> {
   const state = readState(STATE_PATH);
   state.lastRunAt = new Date().toISOString();
 
-  if (opts.dryRun) {
-    console.log('[dry-run] Preflight passed. Building queue without executing.');
-  }
-
-  const queue = opts.dryRun ? [] : buildQueue(config, state);
+  const queue = buildQueue(config, state);
   console.log(`Queue: ${queue.length} items`);
 
-  for (const item of queue) {
-    if (item.kind === 'issue') {
-      await processIssue(item, config, state, opts);
-    } else if (item.kind === 'todo') {
-      console.log(`[todo] ${item.title} — skipping (not yet implemented)`);
-    } else if (item.kind === 'surprise') {
-      console.log('[surprise] Surprise task — skipping (not yet implemented)');
+  if (opts.dryRun) {
+    for (const item of queue) {
+      console.log(`[dry-run] Would process: ${item.kind} ${item.issueNumber ? `#${item.issueNumber}` : ''} ${item.title}`);
+    }
+  } else {
+    for (const item of queue) {
+      if (item.kind === 'issue') {
+        await processIssue(item, config, state, opts);
+      } else if (item.kind === 'todo') {
+        console.log(`[todo] ${item.title} — skipping (not yet implemented)`);
+      } else if (item.kind === 'surprise') {
+        console.log('[surprise] Surprise task — skipping (not yet implemented)');
+      }
     }
   }
 
